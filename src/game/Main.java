@@ -214,19 +214,6 @@ public class Main extends Application {
             }
         });
 
-        btnStepBack.setOnAction(event -> {
-            try {
-                stepBack();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-            catch (NullPointerException | IllegalArgumentException exception){
-                alert = new Alert(Alert.AlertType.INFORMATION);
-                alert.setHeaderText("Can't go back further in the game");
-                alert.show();
-            }
-        });
-
         saveScore.setOnAction(event -> {
             try {
                 showSaveScoreDialog();
@@ -343,6 +330,19 @@ public class Main extends Application {
         btnStopBot.setOnAction(event -> stopBotTimeline());
 
         botSettings.setOnAction(event -> botSettingsBox.setVisible(!botSettingsBox.isVisible()));
+
+        btnStepBack.setOnAction(event -> {
+            try {
+                stepBack();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            catch (NullPointerException | IllegalArgumentException exception){
+                alert = new Alert(Alert.AlertType.INFORMATION);
+                alert.setHeaderText("Can't go back further in the game");
+                alert.show();
+            }
+        });
 
         gameHistorySlider.valueProperty().addListener((observable, oldValue, newValue) -> {
             try {
