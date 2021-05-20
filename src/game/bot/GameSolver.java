@@ -12,35 +12,35 @@ import java.util.concurrent.Future;
 
 public class GameSolver{
 
-    private final TileGrid initalGrid;
-    private final int depthlimit;
+    private final TileGrid INITIAL_GRID;
+    private final int DEPTH_LIMIT;
 
     public GameSolver(TileGrid tileGrid, int depthlimit) {
-        this.initalGrid = tileGrid;
-        this.depthlimit = depthlimit;
+        this.INITIAL_GRID = tileGrid;
+        this.DEPTH_LIMIT = depthlimit;
     }
 
     public Direction nexMove() throws ExecutionException, InterruptedException {
         ExecutorService fixedThreadPool = Executors.newFixedThreadPool(4);
-        ArrayList<Future<Integer>> futureScore = new ArrayList<>();
+        ArrayList<Future<Double>> futureScore = new ArrayList<>();
         for (Direction direction: Direction.values()) {
-            futureScore.add(fixedThreadPool.submit(new MoveScoreGenerator(initalGrid, direction, depthlimit)));
+            futureScore.add(fixedThreadPool.submit(new MoveScoreGenerator(INITIAL_GRID, direction, DEPTH_LIMIT)));
         }
-        ArrayList<Integer> scores = new ArrayList<>();
-        for (Future<Integer> score : futureScore) {
+        ArrayList<Double> scores = new ArrayList<>();
+        for (Future<Double> score : futureScore) {
             scores.add(score.get());
         }
-        int bestScore = Collections.max(scores);
+        double bestScore = Collections.max(scores);
         Direction bestMove = Direction.values()[scores.indexOf(bestScore)];
-        fixedThreadPool.shutdown();
+        fixedThreadPool.shutdownNow();
 
         debug(bestScore, bestMove);
         return bestMove;
     }
 
-    private void debug(int bestScore, Direction bestMove) {
-        for (ArrayList<Integer> x : initalGrid.getTiles())
+    private void debug(double bestScore, Direction bestMove) {
+        for (ArrayList<Integer> x : INITIAL_GRID.getTiles())
             System.out.println(x);
-        System.out.println("Best Move " + bestMove + "---" + bestScore);
+        System.out.println("Best Move " + bestMove + ": " + bestScore + "---");
     }
 }

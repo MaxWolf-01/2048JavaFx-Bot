@@ -6,7 +6,7 @@ import java.util.*;
 public class TileGrid implements Serializable {
     private int nRows;
     private int nCols;
-    private final Random randomNr = new Random();
+    private final Random random = new Random();
     private ArrayList<Integer>[] tiles;
     private int tileSum;
 
@@ -53,9 +53,9 @@ public class TileGrid implements Serializable {
         Map<Integer, ArrayList<Integer>> emptyTilePositions = getEmptyTilePositions();
         Object[] rows = emptyTilePositions.keySet().toArray();
 
-        int rowPos = (int) rows[randomNr.nextInt(rows.length)];
+        int rowPos = (int) rows[random.nextInt(rows.length)];
         ArrayList<Integer> row = emptyTilePositions.get(rowPos);
-        int colPos = row.get(randomNr.nextInt(row.size()));
+        int colPos = row.get(random.nextInt(row.size()));
 
         tiles[rowPos].set(colPos, 2);
     }
@@ -66,7 +66,7 @@ public class TileGrid implements Serializable {
         int rowCount  = -1;
         for (ArrayList<Integer> row : tiles){
             rowCount++;
-            ArrayList<Integer> colIndexes = indexOfAll(0, row);
+            ArrayList<Integer> colIndexes = indexOfAllZeroes(row);
             if (!colIndexes.isEmpty())
                 emptyTiles.put(rowCount, colIndexes);
         }
@@ -92,7 +92,7 @@ public class TileGrid implements Serializable {
         return moved;
     }
 
-    public boolean moveLeft() {
+    private boolean moveLeft() {
         int rowCount = 0;
         boolean moved = false;
 
@@ -107,11 +107,11 @@ public class TileGrid implements Serializable {
         return moved;
     }
 
-    public boolean moveRight(){
+    private boolean moveRight(){
         return rightShift(tiles);
     }
 
-    public boolean moveUp(){
+    private boolean moveUp(){
         int rowCount = 0;
         boolean moved = false;
 
@@ -128,7 +128,7 @@ public class TileGrid implements Serializable {
         return moved;
     }
 
-    public boolean moveDown(){
+    private boolean moveDown(){
         boolean moved;
         ArrayList<Integer>[] tilesT = transpose(tiles);
         moved = rightShift(tilesT);
@@ -206,10 +206,10 @@ public class TileGrid implements Serializable {
         return resultRow;
     }
 
-    public ArrayList<Integer> indexOfAll(Integer num, ArrayList<Integer> list) {
+    private ArrayList<Integer> indexOfAllZeroes(ArrayList<Integer> list) {
         final ArrayList<Integer> indexList = new ArrayList<>();
         for (int i = 0; i < list.size(); i++) {
-            if (num.equals(list.get(i))) {
+            if (((Integer) 0).equals(list.get(i))) {
                 indexList.add(i);
             }
         }
@@ -223,7 +223,7 @@ public class TileGrid implements Serializable {
         return true;
     }
 
-    public boolean gameOver() {
+    public boolean gameIsOver() {
         return getEmptyTilePositions().isEmpty() && !equalTilesNextEachOther();
     }
 
@@ -236,7 +236,7 @@ public class TileGrid implements Serializable {
         return  count + countEqualTilesNextEachOtherPerRow(transpose(tiles));
     }
 
-    public int countEqualTilesNextEachOtherPerRow(ArrayList<Integer>[] tiles) {
+    private int countEqualTilesNextEachOtherPerRow(ArrayList<Integer>[] tiles) {
         int count = 0;
         for (ArrayList<Integer> row : tiles)
             for (int col = 0; col + 1 < nCols; col++) {
@@ -278,10 +278,20 @@ public class TileGrid implements Serializable {
         return possiblePositions;
     }
 
-    public int smoothnessSore() {
-        int totalDiff = tileDifferenceInRows(tiles);
-        totalDiff +=  tileDifferenceInRows(transpose(tiles));
-        return Math.abs((totalDiff/getTileSum()) - 6); // TODO improve ?
+    public double finalScore(){
+        double finalScore = monotonicityScore()*4;
+//      finalScore += smoothnessSore(); // these are good on their own but mess with the mon. Score..
+//      finalScore += emptyTileScore();
+        if(maxSquareInCorner())
+            finalScore++;
+        return finalScore/5;
+    }
+
+    public double smoothnessSore() {
+        double totalDiff = tileDifferenceInRows(tiles);
+        totalDiff += tileDifferenceInRows(transpose(tiles));
+        int MAX_SMOOTHNESS_SCORE = 5;
+        return Math.abs((totalDiff/getTileSum())-5)/MAX_SMOOTHNESS_SCORE;
     }
 
     private int tileDifferenceInRows(ArrayList<Integer>[] tiles) {
@@ -293,9 +303,8 @@ public class TileGrid implements Serializable {
         return totalDiff;
     }
 
-    public int emptyTileScore() {
-        double freeTilesPercent = (double) countEmptyTiles()/Math.pow(tiles.length, 2);
-        return freeTilesPercent > 0.3 ? 3 : freeTilesPercent > 0.2 ? 2 :freeTilesPercent > 0.1 ? 1 : 0;
+    public double emptyTileScore() {
+        return (double) countEmptyTiles()/Math.pow(tiles.length, 2);
     }
 
     public int countEmptyTiles() {
@@ -306,42 +315,55 @@ public class TileGrid implements Serializable {
         return emptyTileCount;
     }
 
-    public int monotonicityScore(){
+    public double monotonicityScore() {
+        double MAX_MONOTONICITY_SCORE = 50;
+        return (tilesInMonotonicOrderScore() + monotonicColScore())/MAX_MONOTONICITY_SCORE;
+    }
+
+    private int monotonicColScore() {
         int monotonicityScore = 0;
-        for (int i = 0; i < tiles.length; i++){
-            if (xHighestValuesInRowX(i, tiles) && xHighestValuesInColX(i))
-                monotonicityScore++;
-                if (i == 0)
-                    monotonicityScore++;
+        for (int i = 0; i < tiles.length; i++) {
+            if (rowIsMonotonic(transpose(tiles)[i]))
+                monotonicityScore += tiles.length - i;
         }
         return monotonicityScore;
     }
 
-    public boolean xHighestValuesInColX(int col){
-        ArrayList<Integer>[] transposedTiles = transpose(tiles);
-        return xHighestValuesInRowX(col, transposedTiles);
+    private int tilesInMonotonicOrderScore(){
+        int monotonicTilesScore = 0;
+        int scoreWeight = tiles.length;
+        ArrayList<Integer> monotonicValues = getMonotonicValues();
+        for(int i = 0; i < Math.pow(tiles.length, 2); i++) {
+            if (!monotonicValues.get(i).equals(tiles[i/4].get(i%4)))
+                break;
+            monotonicTilesScore += scoreWeight;
+            if (!(i<tiles.length-1) && ((i+1) % tiles.length == 0))
+                scoreWeight--;
+
+        }
+        return monotonicTilesScore;
     }
 
-    public boolean xHighestValuesInRowX(int row, ArrayList<Integer>[] tiles) {
-        int rowSumX = rowSum(tiles[row]);
-        for (int i = row+1; i < tiles.length; i++)
-            if (rowSum(tiles[i]) > rowSumX)
+    private ArrayList<Integer> getMonotonicValues(){
+        ArrayList<Integer> monotonicValues = new ArrayList<>();
+        for (ArrayList<Integer> row : tiles)
+            monotonicValues.addAll(row);
+        Collections.sort(monotonicValues);
+        Collections.reverse(monotonicValues);
+       return monotonicValues;
+    }
+
+    public static boolean rowIsMonotonic(ArrayList<Integer> row){
+        for (int i = 0; i < row.size(); i++){
+            if (i == 0)
+                continue;
+            if (row.get(i) > row.get(i-1))
                 return false;
-        for (int i = row-1; i >= 0; i--)
-            if (rowSum(tiles[i]) < rowSumX)
-                return false;
+        }
         return true;
     }
 
-    private int rowSum(ArrayList<Integer> row){
-        int sum = 0;
-        for (int i : row ){
-            sum += i;
-        }
-        return sum;
-    }
-
-    public static Object deepCopy(Object o) throws  Exception{
+    public static Object deepCopy(TileGrid o) throws  Exception{
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         new ObjectOutputStream( baos ).writeObject( o );
         ByteArrayInputStream bais = new ByteArrayInputStream( baos.toByteArray() );

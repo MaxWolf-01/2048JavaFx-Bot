@@ -48,10 +48,9 @@ public class Main extends Application {
     private TileGrid tileGrid;
     private Score score;
     private Timeline timeline;
-    private final String currentGameHistoryPath = "src/data/currentGameHistory.csv";
-    private final String highScoresPath = "src/data/HighScores.txt";
+    private final String CURRENT_GAME_HISTORY_PATH = "src/data/currentGameHistory.csv";
+    private final String HIGH_SCORES_PATH = "src/data/HighScores.txt";
 
-    public final int imageSize = 100;
     private TilePane tilePane;
 
     private MenuItem saveScore;
@@ -209,7 +208,7 @@ public class Main extends Application {
             try {
                 saveGrid(tileGrid, file, false);
             } catch (IOException | NullPointerException exception) {
-                newGameAlert();
+                showNewGameAlert();
                 exception.printStackTrace();
             }
         });
@@ -219,7 +218,7 @@ public class Main extends Application {
                 showSaveScoreDialog();
                 score.setName(textInputDialog.getEditor().getText());
                 saveScore(score.getName(), score.getSimpleScore(), score.getTime(),
-                            score.getTimeScore(), new File(highScoresPath));
+                            score.getTimeScore(), new File(HIGH_SCORES_PATH));
                 saveScore.setVisible(false);
             } catch (IOException e) {
                 e.printStackTrace();
@@ -232,7 +231,7 @@ public class Main extends Application {
                 alert.setHeaderText("Do you really want to delete all sores?");
                 Optional<ButtonType> confirmation = alert.showAndWait();
                 if (confirmation.isPresent() && (confirmation.get() == ButtonType.OK))
-                    clearFile(new File(highScoresPath));
+                    clearFile(new File(HIGH_SCORES_PATH));
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -289,7 +288,7 @@ public class Main extends Application {
                     direction = getBotMove();
                 }
                 catch (NullPointerException | ExecutionException exception){
-                    newGameAlert();
+                    showNewGameAlert();
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
@@ -308,7 +307,7 @@ public class Main extends Application {
                 move(getBotMove());
             }
             catch (NullPointerException exception){
-                newGameAlert();
+                showNewGameAlert();
             }
             catch (Exception e) {
                 e.printStackTrace();
@@ -320,7 +319,7 @@ public class Main extends Application {
                 startBotTimeline();
             }
             catch (NullPointerException exception){
-                newGameAlert();
+                showNewGameAlert();
             }
             catch (Exception e) {
                 e.printStackTrace();
@@ -346,19 +345,19 @@ public class Main extends Application {
 
         gameHistorySlider.valueProperty().addListener((observable, oldValue, newValue) -> {
             try {
-                drawGame(loadGridAtPos(new File(currentGameHistoryPath), (int) gameHistorySlider.getValue()));
+                drawGame(loadGridAtPos(new File(CURRENT_GAME_HISTORY_PATH), (int) gameHistorySlider.getValue()));
             } catch (IOException exception) {
                 exception.printStackTrace();
             }
         });
     }
 
-    public void newGame() throws IOException {
+    private void newGame() throws IOException {
         tileGrid = new TileGrid(4, 4);
         startGame();
     }
 
-    public void loadGame(TileGrid tileGrid) throws IOException {
+    private void loadGame(TileGrid tileGrid) throws IOException {
         this.tileGrid = tileGrid;
         startGame();
     }
@@ -366,7 +365,7 @@ public class Main extends Application {
     private void startGame() throws IOException {
         setScore();
         drawGame();
-        saveGrid(tileGrid, new File(currentGameHistoryPath), false);
+        saveGrid(tileGrid, new File(CURRENT_GAME_HISTORY_PATH), false);
         btnStepBack.setDisable(false);
         saveScore.setVisible(false);
         leftBox.setVisible(false);
@@ -374,31 +373,35 @@ public class Main extends Application {
         timeline.play();
     }
 
-    public void move(Direction direction) throws IOException {
+    private void move(Direction direction) throws IOException {
         if (tileGrid == null){
-            newGameAlert();
+            showNewGameAlert();
             return;
         }
         if (direction != null && tileGrid.move(direction)) {
             tileGrid.addTileRandomly();
-        } else if (tileGrid.gameOver()) {
-            timeline.stop();
-            if (botTimeline != null){
-                stopBotTimeline();
-            }
-            saveScore.setVisible(true);
-            btnStepBack.setDisable(true);
-            setGameHistorySlider();
-            showGameOverAlert();
-            alert.show();
+        } else if (tileGrid.gameIsOver()) {
+            gameOver();
         }
         drawGame();
         setScore();
-        saveGrid(tileGrid, new File(currentGameHistoryPath), true);
+        saveGrid(tileGrid, new File(CURRENT_GAME_HISTORY_PATH), true);
     }
 
-    public void startBotTimeline() {
-        botTimeline = new Timeline(new KeyFrame(Duration.millis(150),
+    private void gameOver() throws IOException {
+        timeline.stop();
+        if (botTimeline != null){
+            stopBotTimeline();
+        }
+        saveScore.setVisible(true);
+        btnStepBack.setDisable(true);
+        setGameHistorySlider();
+        showGameOverAlert();
+        alert.show();
+    }
+
+    private void startBotTimeline() {
+        botTimeline = new Timeline(new KeyFrame(Duration.millis(150), //<- smooth but poor performance 
                 event -> {
                     boolean exceededMoveTime = false;
                     try {
@@ -407,12 +410,13 @@ public class Main extends Application {
                         try {
                             Direction direction = directionFuture.get((long) getMaxMoveTime(), TimeUnit.MILLISECONDS);
                             move(direction);
+
                         } catch (TimeoutException  e) {
                             directionFuture.cancel(true);
                             exceededMoveTime = true;
                         }
                         catch (ExecutionException | NullPointerException e){
-                            newGameAlert();
+                            showNewGameAlert();
                             botTimeline.stop();
                             return;
                         }
@@ -435,34 +439,17 @@ public class Main extends Application {
             if(getDepthlimit()-1 > 0)
                 setDepthLimit(getDepthlimit()-1);
         }
-        else if(tileGrid.smoothnessSore()+tileGrid.monotonicityScore()+tileGrid.emptyTileScore() < 8) //magic num
-            setDepthLimit(getDepthlimit()+1);
-    }
-
-    private void setTimeline() {
-        timeline = new Timeline(new KeyFrame(Duration.millis(1000),
-                event -> {
-                    score.incrementTime();
-                    timeProp.setValue(String.format("Time: %02d:%02d",
-                            score.getGetHours(), score.getMinutes()));
-                }));
-        timeline.setCycleCount(Animation.INDEFINITE);
+        else{
+            int emptyTiles = tileGrid.countEmptyTiles();
+//            setDepthLimit(emptyTiles > 8 ? 1 : emptyTiles > 6 ? 2 : emptyTiles > 4 ? 3 : emptyTiles > 2 ? 4 : 5);
+          setDepthLimit(emptyTiles > 8 ? 1 : emptyTiles > 5 ? 2 : emptyTiles > 4 ? 3 : emptyTiles > 2 ? 4 : 5);
+        }
     }
 
     private void stopBotTimeline() {
         botTimeline.stop();
         btnStopBot.setVisible(false);
         btnStopBot.setManaged(false);
-    }
-
-    private Direction getBotMove() throws Exception{
-        GameSolver gameSolver = new GameSolver((TileGrid) TileGrid.deepCopy(this.tileGrid), getDepthlimit());
-        try{
-            return gameSolver.nexMove();
-        }catch (NullPointerException exception){
-            newGameAlert();
-            return null;
-        }
     }
 
     private int getDepthlimit() {
@@ -473,16 +460,28 @@ public class Main extends Application {
         depthLimitSlider.setValue(depth);
     }
 
-    private void setMaxMoveTimeSpinner(){
-        maxMoveTimeSpinner = new Spinner<>();
-        maxMoveTimeSpinner.setMaxWidth(55);
-        SpinnerValueFactory<Double> valueFactory = new SpinnerValueFactory
-                .DoubleSpinnerValueFactory(0.2, 2, 0.6, 0.2);
-        maxMoveTimeSpinner.setValueFactory(valueFactory);
-    }
-
     private double getMaxMoveTime(){
         return maxMoveTimeSpinner.getValue()*1000;
+    }
+
+    private Direction getBotMove() throws Exception{
+        GameSolver gameSolver = new GameSolver((TileGrid) TileGrid.deepCopy(this.tileGrid), getDepthlimit());
+        try{
+            return gameSolver.nexMove();
+        }catch (NullPointerException exception){
+            showNewGameAlert();
+            return null;
+        }
+    }
+
+    private void setTimeline() {
+        timeline = new Timeline(new KeyFrame(Duration.millis(1000),
+                event -> {
+                    score.incrementTime();
+                    timeProp.setValue(String.format("Time: %02d:%02d",
+                            score.getGetMinutes(), score.getSeconds()));
+                }));
+        timeline.setCycleCount(Animation.INDEFINITE);
     }
 
     private void setTilePane() {
@@ -499,8 +498,16 @@ public class Main extends Application {
         tilePane.setAlignment(Pos.TOP_LEFT);
     }
 
+    private void setMaxMoveTimeSpinner(){
+        maxMoveTimeSpinner = new Spinner<>();
+        maxMoveTimeSpinner.setMaxWidth(60);
+        SpinnerValueFactory<Double> valueFactory = new SpinnerValueFactory
+                .DoubleSpinnerValueFactory(0.2, 2, 0.35, 0.05);
+        maxMoveTimeSpinner.setValueFactory(valueFactory);
+    }
+
     private void setDepthLimitSlider() {
-        depthLimitSlider = new Slider(1, 8, 2); //method?
+        depthLimitSlider = new Slider(1, 8, 2);
         depthLimitSlider.setBlockIncrement(1);
         depthLimitSlider.setMajorTickUnit(1);
         depthLimitSlider.setMinorTickCount(0);
@@ -511,7 +518,7 @@ public class Main extends Application {
     }
 
     private void setGameHistorySlider() throws IOException {
-        int moveCount = getMoveCount(new File(currentGameHistoryPath));
+        int moveCount = getMoveCount(new File(CURRENT_GAME_HISTORY_PATH));
         gameHistorySlider.setMax(moveCount);
         gameHistorySlider.setMin(0);
         gameHistorySlider.setMax(moveCount);
@@ -533,7 +540,7 @@ public class Main extends Application {
         textInputDialog.showAndWait();
     }
 
-    private void newGameAlert() {
+    private void showNewGameAlert() {
         alert = new Alert(Alert.AlertType.INFORMATION);
         alert.setTitle("Not so fast buddy");
         alert.setHeaderText("Click on 'New Game' first to start!");
@@ -545,8 +552,8 @@ public class Main extends Application {
         alert.setResizable(true);
         alert.setTitle("Game Over");
         alert.setHeaderText(String.format("Score: %s Time: %02d:%02d",
-                score.timeScore(tileGrid), score.getGetHours(), score.getMinutes()));
-        alert.setContentText("You can save your score now in 'HighScores'!");
+                score.timeScore(tileGrid), score.getGetMinutes(), score.getSeconds()));
+        alert.setContentText("You can now save your score in 'HighScores'!");
         alert.show();
     }
 
@@ -571,7 +578,7 @@ public class Main extends Application {
         scoreProp.setValue("Score: " + score.simpleScore(tileGrid));
     }
 
-    public void showScoreTableAlert() throws IOException {
+    private void showScoreTableAlert() throws IOException {
         TableColumn<Score, String> nameCol = new TableColumn<>("Name");
         nameCol.setCellValueFactory(new PropertyValueFactory<>("name"));
         TableColumn<Score, Integer> scoreCol = new TableColumn<>("Score");
@@ -597,16 +604,16 @@ public class Main extends Application {
     }
 
     private void stepBack() throws IOException {
-        displayGridAtMove(getMoveCount(new File(currentGameHistoryPath))-1);
-        removeLastLines(new File(currentGameHistoryPath), tileGrid.getnCols()+1);
+        displayGridAtMove(getMoveCount(new File(CURRENT_GAME_HISTORY_PATH))-1);
+        removeLastLines(new File(CURRENT_GAME_HISTORY_PATH), tileGrid.getnCols()+1);
     }
 
     private void displayGridAtMove(int moveNumber) throws IOException {
-        tileGrid = loadGridAtPos(new File(currentGameHistoryPath), moveNumber);
+        tileGrid = loadGridAtPos(new File(CURRENT_GAME_HISTORY_PATH), moveNumber);
         drawGame();
     }
 
-    public void drawGame() throws FileNotFoundException {
+    private void drawGame() throws FileNotFoundException {
         tilePane.getChildren().clear();
         for (ArrayList<Integer> row : tileGrid.getTiles()) {
             for (int col : row)
@@ -614,7 +621,7 @@ public class Main extends Application {
         }
     }
 
-    public void drawGame(TileGrid grid) throws FileNotFoundException {
+    private void drawGame(TileGrid grid) throws FileNotFoundException {
         tilePane.getChildren().clear();
         for (ArrayList<Integer> row : grid.getTiles()) {
             for (int col : row)
@@ -622,20 +629,21 @@ public class Main extends Application {
         }
     }
 
-    public ImageView getIview(String filePath) throws FileNotFoundException {
+    private ImageView getIview(String filePath) throws FileNotFoundException {
         Image image = loadImage(filePath);
         ImageView iView = new ImageView(image);
+        int imageSize = 100;
         iView.setFitWidth(imageSize);
         iView.setFitHeight(imageSize);
         iView.setPreserveRatio(true);
         return iView;
     }
 
-    public Image loadImage(String filepath) throws FileNotFoundException {
+    private Image loadImage(String filepath) throws FileNotFoundException {
         return new Image(getFileInputStream(filepath));
     }
 
-    public FileInputStream getFileInputStream(String filepath) throws FileNotFoundException {
+    private FileInputStream getFileInputStream(String filepath) throws FileNotFoundException {
         try {
             return new FileInputStream(filepath);
         } catch (NullPointerException | FileNotFoundException ex) {

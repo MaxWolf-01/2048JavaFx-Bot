@@ -6,60 +6,54 @@ import game.TileGrid;
 import java.util.Objects;
 import java.util.concurrent.Callable;
 
-public class MoveScoreGenerator implements Callable<Integer> {
+public class MoveScoreGenerator implements Callable<Double> {
 
-    private final TileGrid initalGrid;
-    private final Direction direction;
-    private final int depthlimit;
+    private final TileGrid INITIAL_GRID;
+    private final Direction DIRECTION;
+    private final int DEPTH_LIMIT;
 
     public MoveScoreGenerator(TileGrid initalGrid, Direction direction, int depthlimit){
-        this.initalGrid = initalGrid;
-        this.direction = direction;
-        this.depthlimit = depthlimit;
+        this.INITIAL_GRID = initalGrid;
+        this.DIRECTION = direction;
+        this.DEPTH_LIMIT = depthlimit;
     }
 
     @Override
-    public Integer call() throws Exception {
-        return calculateScore(direction);
+    public Double call() throws Exception {
+        return calculateScore(DIRECTION);
     }
 
-    private int calculateScore(Direction direction) throws Exception {
+    private double calculateScore(Direction direction) throws Exception {
         TileGrid newGrid = null;
-        try { newGrid = (TileGrid) TileGrid.deepCopy(initalGrid);
+        try { newGrid = (TileGrid) TileGrid.deepCopy(INITIAL_GRID);
         } catch (Exception e) {e.printStackTrace();}
         if (!Objects.requireNonNull(newGrid).move(direction)) //simulate Move
             return -1;
-        return generateScore(newGrid, 0, depthlimit);
+        return generateScore(newGrid, 0, DEPTH_LIMIT);
     }
 
-    private int generateScore(TileGrid grid, int currentDepth, int depthLimit) throws Exception {
+    private double generateScore(TileGrid grid, int currentDepth, int depthLimit) throws Exception {
         if (currentDepth == depthLimit)
             return calculateFinalScore(grid);
-        int totalScore = 0;
+        double totalScore = 0;
         for (TileGrid position : grid.everyPossiblePosition())
             totalScore += calculateMoveScore(position, currentDepth, depthLimit);
         return totalScore;
     }
 
-    private int calculateMoveScore(TileGrid grid, int currentDepth, int depthLimit) throws Exception {
-        int bestScore = 0;
+    private double calculateMoveScore(TileGrid grid, int currentDepth, int depthLimit) throws Exception {
+        double bestScore = 0;
         for (Direction direction : Direction.values()) {
               TileGrid newGrid = (TileGrid) TileGrid.deepCopy(grid);
             if (newGrid.move(direction)) {
-                int score = generateScore(newGrid, currentDepth + 1, depthLimit);
+                double score = generateScore(newGrid, currentDepth + 1, depthLimit);
                 bestScore = Math.max(score, bestScore);
             }
         }
         return bestScore;
     }
 
-    private int calculateFinalScore(TileGrid grid) {
-        int score = 0;
-        score+= grid.monotonicityScore(); //max 4
-        score+= grid.emptyTileScore(); // max 3
-        score+= grid.smoothnessSore(); // max ~5
-        if(grid.maxSquareInCorner())
-            score += 20;
-        return score;
+    private double calculateFinalScore(TileGrid grid) {
+        return grid.finalScore();
     }
 }

@@ -1,4 +1,6 @@
-Bot(D3),3912,172,34963
-Bot(D2),2912,56,35206
 Bot(Automated),3820,501,32851
 Bot(Automated),4142,387,33849
+Bot,5760,620,70173
+Bot (manually),9276,1421,138915
+Bot(Automated),4198,284,34529
+Bot(Automated),4110,110,36119

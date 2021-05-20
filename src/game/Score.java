@@ -62,11 +62,11 @@ public class Score {
         setTime(time + 1);
     }
 
-    public int getGetHours() {
+    public int getGetMinutes() {
         return time / 60;
     }
 
-    public int getMinutes() {
+    public int getSeconds() {
         return time % 60;
     }
 

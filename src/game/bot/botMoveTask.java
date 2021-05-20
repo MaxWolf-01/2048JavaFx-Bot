@@ -7,8 +7,8 @@ import java.util.concurrent.Callable;
 
 public class botMoveTask implements Callable<Direction> {
 
-    TileGrid grid;
-    int depth;
+    private final TileGrid grid;
+    private final int depth;
     public botMoveTask(TileGrid grid, int depth){
         this.grid = grid;
         this.depth = depth;
